@@ -14,7 +14,7 @@ export function ChatOptionButtons({
   disabled = false,
 }: ChatOptionButtonsProps) {
   return (
-    <div className="grid gap-2" aria-label="답변 선택">
+    <div className="grid gap-2" role="group" aria-label="답변 선택">
       {options.map((option, index) => (
         <BtnCta
           key={option.value}

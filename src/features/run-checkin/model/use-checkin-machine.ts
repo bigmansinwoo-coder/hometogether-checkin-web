@@ -2,14 +2,24 @@
 
 import { useEffect, useReducer } from "react";
 
-import { submitCheckinAnswer, type CheckinSession } from "@/domains/checkin";
+import {
+  getCheckinDetailOptions,
+  submitCheckinAnswer,
+  type CheckinAnswers,
+  type CheckinDetailOption,
+  type CheckinIssue,
+  type CheckinSession,
+  type CheckinTagOption,
+} from "@/domains/checkin";
 
 import type {
   CheckinMachineState,
   OptionAnswer,
   Scenario,
   ScenarioContext,
+  ScenarioNext,
 } from "./scenario";
+import { getIssueTriageLevel, getOverallTriageLevel } from "./triage";
 
 interface UseCheckinMachineOptions {
   scenario: Scenario;
@@ -17,13 +27,20 @@ interface UseCheckinMachineOptions {
 }
 
 type MachineAction =
-  | { type: "answer"; option: OptionAnswer }
+  | { type: "answer-option"; option: OptionAnswer }
+  | { type: "select-tag"; tag: CheckinTagOption }
+  | { type: "select-detail"; detail: CheckinDetailOption }
+  | { type: "submit-text"; text: string }
   | { type: "submit-succeeded" }
   | { type: "submit-failed" }
   | { type: "retry-submit" };
 
 function interpolate(text: string, context: ScenarioContext) {
   return text.replaceAll("{name}", context.name);
+}
+
+function createInitialAnswers(): CheckinAnswers {
+  return { responses: {}, issues: [] };
 }
 
 function createInitialState(scenario: Scenario, context: ScenarioContext): CheckinMachineState {
@@ -43,92 +60,218 @@ function createInitialState(scenario: Scenario, context: ScenarioContext): Check
         text: interpolate(entry.message.text, context),
       },
     ],
-    answers: {},
+    answers: createInitialAnswers(),
     nextMessageId: 1,
+  };
+}
+
+function appendUserMessage(state: CheckinMachineState, text: string): CheckinMachineState {
+  return {
+    ...state,
+    transcript: [
+      ...state.transcript,
+      {
+        id: `message-${state.nextMessageId}`,
+        role: "user",
+        text,
+      },
+    ],
+    nextMessageId: state.nextMessageId + 1,
+  };
+}
+
+function advance(
+  state: CheckinMachineState,
+  next: ScenarioNext,
+  scenario: Scenario,
+  context: ScenarioContext,
+): CheckinMachineState {
+  if (next.type === "issue-count") {
+    const stepId =
+      state.answers.issues.length < next.lessThan ? next.then : next.otherwise;
+    return advance(state, { type: "step", stepId }, scenario, context);
+  }
+
+  if (next.type === "complete") {
+    return {
+      ...state,
+      status: "submitting",
+      currentStepId: undefined,
+      pendingOutcome: next.outcome,
+    };
+  }
+
+  const nextStep = scenario.steps[next.stepId];
+  if (!nextStep) {
+    throw new Error(`Scenario step not found: ${next.stepId}`);
+  }
+
+  return {
+    ...state,
+    currentStepId: nextStep.id,
+    transcript: [
+      ...state.transcript,
+      {
+        id: `message-${state.nextMessageId}`,
+        role: "bot",
+        text: interpolate(nextStep.message.text, context),
+      },
+    ],
+    nextMessageId: state.nextMessageId + 1,
+  };
+}
+
+function updateResponses(
+  answers: CheckinAnswers,
+  answerKey: string,
+  value: string,
+): CheckinAnswers {
+  return {
+    ...answers,
+    responses: { ...answers.responses, [answerKey]: value },
   };
 }
 
 function createMachineReducer(scenario: Scenario, context: ScenarioContext) {
   return (state: CheckinMachineState, action: MachineAction): CheckinMachineState => {
-    switch (action.type) {
-      case "answer": {
-        if (state.status !== "active" || !state.currentStepId) return state;
+    if (action.type === "submit-succeeded") {
+      if (state.status !== "submitting" || !state.pendingOutcome) return state;
 
-        const currentStep = scenario.steps[state.currentStepId];
-        if (!currentStep) return state;
-
-        const option = currentStep.control.options.find(
-          (candidate) => candidate.value === action.option.value,
-        );
-        if (!option) return state;
-
-        const transcript = [
+      const completionMessage = scenario.completionMessages[state.pendingOutcome];
+      return {
+        ...state,
+        status: "completed",
+        transcript: [
           ...state.transcript,
           {
             id: `message-${state.nextMessageId}`,
-            role: "user" as const,
-            text: option.label,
+            role: "bot",
+            text: interpolate(completionMessage.text, context),
           },
-        ];
-        const answers = { ...state.answers, [currentStep.answerKey]: option.value };
-
-        if (option.next.type === "complete") {
-          return {
-            ...state,
-            status: "submitting",
-            currentStepId: undefined,
-            pendingOutcome: option.next.outcome,
-            transcript,
-            answers,
-            nextMessageId: state.nextMessageId + 1,
-          };
-        }
-
-        const nextStep = scenario.steps[option.next.stepId];
-        if (!nextStep) {
-          throw new Error(`Scenario step not found: ${option.next.stepId}`);
-        }
-
-        return {
-          ...state,
-          currentStepId: nextStep.id,
-          transcript: [
-            ...transcript,
-            {
-              id: `message-${state.nextMessageId + 1}`,
-              role: "bot",
-              text: interpolate(nextStep.message.text, context),
-            },
-          ],
-          answers,
-          nextMessageId: state.nextMessageId + 2,
-        };
-      }
-      case "submit-succeeded": {
-        if (state.status !== "submitting" || !state.pendingOutcome) return state;
-
-        const completionMessage = scenario.completionMessages[state.pendingOutcome];
-        return {
-          ...state,
-          status: "completed",
-          transcript: [
-            ...state.transcript,
-            {
-              id: `message-${state.nextMessageId}`,
-              role: "bot",
-              text: interpolate(completionMessage.text, context),
-            },
-          ],
-          nextMessageId: state.nextMessageId + 1,
-        };
-      }
-      case "submit-failed":
-        if (state.status !== "submitting") return state;
-        return { ...state, status: "error" };
-      case "retry-submit":
-        if (state.status !== "error") return state;
-        return { ...state, status: "submitting" };
+        ],
+        nextMessageId: state.nextMessageId + 1,
+      };
     }
+
+    if (action.type === "submit-failed") {
+      return state.status === "submitting" ? { ...state, status: "error" } : state;
+    }
+
+    if (action.type === "retry-submit") {
+      return state.status === "error" ? { ...state, status: "submitting" } : state;
+    }
+
+    if (state.status !== "active" || !state.currentStepId) return state;
+
+    const currentStep = scenario.steps[state.currentStepId];
+    if (!currentStep) return state;
+
+    if (action.type === "answer-option") {
+      if (currentStep.control.kind !== "options") return state;
+
+      const option = currentStep.control.options.find(
+        (candidate) => candidate.value === action.option.value,
+      );
+      if (!option) return state;
+
+      const answeredState = appendUserMessage(
+        {
+          ...state,
+          answers: updateResponses(state.answers, currentStep.answerKey, option.value),
+        },
+        option.label,
+      );
+      return advance(answeredState, option.next, scenario, context);
+    }
+
+    if (action.type === "select-tag") {
+      if (currentStep.control.kind !== "tags") return state;
+
+      const tag = currentStep.control.tags.find(
+        (candidate) => candidate.value === action.tag.value,
+      );
+      if (!tag) return state;
+      if (
+        currentStep.control.excludeSelected &&
+        state.answers.issues.some((issue) => issue.tag === tag.value)
+      ) {
+        return state;
+      }
+
+      const issue: CheckinIssue = {
+        tag: tag.value,
+        triageLevel: getIssueTriageLevel(tag.value),
+      };
+      const issues = [...state.answers.issues, issue];
+      const answers = updateResponses(state.answers, currentStep.answerKey, tag.value);
+      const answeredState = appendUserMessage(
+        {
+          ...state,
+          answers: {
+            ...answers,
+            issues,
+            overallTriage: getOverallTriageLevel(issues),
+          },
+        },
+        tag.label,
+      );
+      return advance(
+        answeredState,
+        currentStep.control.nextByTag[tag.value],
+        scenario,
+        context,
+      );
+    }
+
+    if (action.type === "select-detail") {
+      if (currentStep.control.kind !== "chips") return state;
+
+      const currentIssue = state.answers.issues.at(-1);
+      if (!currentIssue) return state;
+
+      const detail = getCheckinDetailOptions(currentIssue.tag).find(
+        (candidate) => candidate.value === action.detail.value,
+      );
+      if (!detail) return state;
+
+      const issues = state.answers.issues.map((issue, index) =>
+        index === state.answers.issues.length - 1
+          ? { ...issue, detail: detail.value }
+          : issue,
+      );
+      const answeredState = appendUserMessage(
+        {
+          ...state,
+          answers: {
+            ...updateResponses(state.answers, currentStep.answerKey, detail.value),
+            issues,
+          },
+        },
+        detail.label,
+      );
+      return advance(answeredState, currentStep.control.next, scenario, context);
+    }
+
+    if (action.type === "submit-text") {
+      if (currentStep.control.kind !== "text") return state;
+
+      const text = action.text.trim().slice(0, currentStep.control.maxLength);
+      const answersWithResponse = updateResponses(
+        state.answers,
+        currentStep.answerKey,
+        text ? "provided" : "skipped",
+      );
+      const answers: CheckinAnswers = text
+        ? { ...answersWithResponse, freeText: text }
+        : answersWithResponse;
+      const answeredState = appendUserMessage(
+        { ...state, answers },
+        text || currentStep.control.skipLabel,
+      );
+      return advance(answeredState, currentStep.control.next, scenario, context);
+    }
+
+    return state;
   };
 }
 
@@ -170,8 +313,12 @@ export function useCheckinMachine({ scenario, session }: UseCheckinMachineOption
   return {
     state,
     currentStep,
-    selectOption: (option: OptionAnswer) => dispatch({ type: "answer", option }),
+    selectOption: (option: OptionAnswer) =>
+      dispatch({ type: "answer-option", option }),
+    selectTag: (tag: CheckinTagOption) => dispatch({ type: "select-tag", tag }),
+    selectDetail: (detail: CheckinDetailOption) =>
+      dispatch({ type: "select-detail", detail }),
+    submitText: (text: string) => dispatch({ type: "submit-text", text }),
     retrySubmit: () => dispatch({ type: "retry-submit" }),
   };
 }
-

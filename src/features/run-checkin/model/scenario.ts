@@ -1,10 +1,22 @@
+import type {
+  CheckinAnswers,
+  CheckinIssueTag,
+  CheckinTagOption,
+} from "@/domains/checkin";
+
 export type StepId = string;
 
 export type CompletionOutcome = "ok" | "reported" | "urgent" | "renewal";
 
 export type ScenarioNext =
   | { type: "step"; stepId: StepId }
-  | { type: "complete"; outcome: CompletionOutcome };
+  | { type: "complete"; outcome: CompletionOutcome }
+  | {
+      type: "issue-count";
+      lessThan: number;
+      then: StepId;
+      otherwise: StepId;
+    };
 
 export interface BotMessage {
   text: string;
@@ -21,11 +33,34 @@ export interface OptionControl {
   options: readonly OptionAnswer[];
 }
 
+export interface TagControl {
+  kind: "tags";
+  tags: readonly CheckinTagOption[];
+  excludeSelected?: boolean;
+  nextByTag: Record<CheckinIssueTag, ScenarioNext>;
+}
+
+export interface ChipControl {
+  kind: "chips";
+  next: ScenarioNext;
+}
+
+export interface TextControl {
+  kind: "text";
+  maxLength: number;
+  placeholder: string;
+  skipLabel: string;
+  submitLabel: string;
+  next: ScenarioNext;
+}
+
+export type AnswerControl = OptionControl | TagControl | ChipControl | TextControl;
+
 export interface ScenarioStep {
   id: StepId;
   answerKey: string;
   message: BotMessage;
-  control: OptionControl;
+  control: AnswerControl;
 }
 
 export interface Scenario {
@@ -52,7 +87,7 @@ export interface CheckinMachineState {
   currentStepId?: StepId;
   pendingOutcome?: CompletionOutcome;
   transcript: TranscriptMessage[];
-  answers: Record<string, string>;
+  answers: CheckinAnswers;
   nextMessageId: number;
 }
 
