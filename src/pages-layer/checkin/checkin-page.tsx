@@ -1,4 +1,6 @@
 import { resolveCheckinSession } from "@/domains/checkin";
+import { chatPreviewScenario } from "@/features/run-checkin";
+import { CheckinChat } from "@/widgets/checkin-chat";
 
 import { CheckinStateScreen } from "./ui/checkin-state-screen";
 import { RetryButton } from "./ui/retry-button";
@@ -12,13 +14,7 @@ export async function CheckinPage({ token }: CheckinPageProps) {
 
   switch (result.status) {
     case "active": {
-      const name = result.session.displayName ? `${result.session.displayName}님` : "안녕하세요";
-      return (
-        <CheckinStateScreen
-          title={`${name}, 체크인을 준비했어요`}
-          description="채팅형 체크인 화면은 다음 구현 단계에서 이 세션 정보와 연결됩니다."
-        />
-      );
+      return <CheckinChat session={result.session} scenario={chatPreviewScenario} />;
     }
     case "completed":
       return (
