@@ -16,3 +16,7 @@ export {
   getCheckinDetailOptions,
 } from "./checkin-options";
 export type { CheckinDetailOption, CheckinTagOption } from "./checkin-options";
+export {
+  assertCheckinSubmission,
+  isCheckinSubmission,
+} from "./submission-contract";
