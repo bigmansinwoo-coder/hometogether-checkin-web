@@ -3,13 +3,13 @@
 import type { CheckinSession } from "@/domains/checkin";
 import {
   ChatBubble,
-  ChatOptionButtons,
   useCheckinMachine,
   type Scenario,
 } from "@/features/run-checkin";
 import { BtnCta } from "@/shared/ui/btn-cta";
 
 import { ChatScroll } from "./chat-scroll";
+import { CheckinControl } from "./checkin-control";
 
 interface CheckinChatProps {
   session: CheckinSession;
@@ -17,10 +17,15 @@ interface CheckinChatProps {
 }
 
 export function CheckinChat({ session, scenario }: CheckinChatProps) {
-  const { state, currentStep, selectOption, retrySubmit } = useCheckinMachine({
-    session,
-    scenario,
-  });
+  const {
+    state,
+    currentStep,
+    selectOption,
+    selectTag,
+    selectDetail,
+    submitText,
+    retrySubmit,
+  } = useCheckinMachine({ session, scenario });
 
   return (
     <main className="flex h-svh min-h-[480px] flex-col bg-grayscale-70">
@@ -40,7 +45,14 @@ export function CheckinChat({ session, scenario }: CheckinChatProps) {
       <section className="shrink-0 border-t border-grayscale-200 bg-grayscale-0 px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto w-full max-w-[480px]">
           {state.status === "active" && currentStep && (
-            <ChatOptionButtons options={currentStep.control.options} onSelect={selectOption} />
+            <CheckinControl
+              step={currentStep}
+              answers={state.answers}
+              onSelectOption={selectOption}
+              onSelectTag={selectTag}
+              onSelectDetail={selectDetail}
+              onSubmitText={submitText}
+            />
           )}
           {state.status === "submitting" && (
             <p className="py-3 text-center text-body-2 text-grayscale-600" role="status">
