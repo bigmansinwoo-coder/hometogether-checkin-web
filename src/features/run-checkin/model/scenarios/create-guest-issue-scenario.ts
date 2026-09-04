@@ -1,0 +1,151 @@
+import { CHECKIN_TAG_OPTIONS } from "@/domains/checkin";
+
+import type { Scenario, ScenarioNext } from "../scenario";
+
+const tagNext = {
+  facility: { type: "step", stepId: "q_chip" },
+  relationship: { type: "step", stepId: "q_chip" },
+  settlement: { type: "step", stepId: "q_chip" },
+  urgent: { type: "complete", outcome: "urgent" },
+  other: { type: "step", stepId: "q_free" },
+} as const satisfies Record<string, ScenarioNext>;
+
+const secondTagNext = {
+  facility: { type: "step", stepId: "q_chip2" },
+  relationship: { type: "step", stepId: "q_chip2" },
+  settlement: { type: "step", stepId: "q_chip2" },
+  urgent: { type: "complete", outcome: "urgent" },
+  other: { type: "step", stepId: "q_free" },
+} as const satisfies Record<string, ScenarioNext>;
+
+const afterIssueDetail = {
+  type: "issue-count",
+  lessThan: 2,
+  then: "q_more",
+  otherwise: "q_free",
+} as const satisfies ScenarioNext;
+
+interface GuestIssueScenarioConfig {
+  id: string;
+  answerKey: string;
+  introText: string;
+  okayLabel: string;
+  issueLabel: string;
+  okayCompletionText: string;
+}
+
+export function createGuestIssueScenario({
+  id,
+  answerKey,
+  introText,
+  okayLabel,
+  issueLabel,
+  okayCompletionText,
+}: GuestIssueScenarioConfig): Scenario {
+  return {
+    id,
+    entry: "q_main",
+    steps: {
+      q_main: {
+        id: "q_main",
+        answerKey,
+        message: { text: introText },
+        control: {
+          kind: "options",
+          options: [
+            {
+              value: "ok",
+              label: okayLabel,
+              next: { type: "complete", outcome: "ok" },
+            },
+            {
+              value: "issue",
+              label: issueLabel,
+              next: { type: "step", stepId: "q_tag" },
+            },
+          ],
+        },
+      },
+      q_tag: {
+        id: "q_tag",
+        answerKey: "issueTag",
+        message: { text: "어떤 점이 불편하셨어요?\n편하게 골라주세요." },
+        control: {
+          kind: "tags",
+          tags: CHECKIN_TAG_OPTIONS,
+          nextByTag: tagNext,
+        },
+      },
+      q_chip: {
+        id: "q_chip",
+        answerKey: "issueDetail",
+        message: { text: "조금만 더 자세히 알려주시겠어요?" },
+        control: { kind: "chips", next: afterIssueDetail },
+      },
+      q_more: {
+        id: "q_more",
+        answerKey: "hasAnotherIssue",
+        message: { text: "혹시 다른 불편한 점도 있으세요?" },
+        control: {
+          kind: "options",
+          options: [
+            {
+              value: "yes",
+              label: "네, 더 있어요",
+              next: { type: "step", stepId: "q_tag2" },
+            },
+            {
+              value: "no",
+              label: "이게 다예요",
+              next: { type: "step", stepId: "q_free" },
+            },
+          ],
+        },
+      },
+      q_tag2: {
+        id: "q_tag2",
+        answerKey: "secondIssueTag",
+        message: { text: "어떤 점이 더 불편하셨어요?" },
+        control: {
+          kind: "tags",
+          tags: CHECKIN_TAG_OPTIONS,
+          excludeSelected: true,
+          nextByTag: secondTagNext,
+        },
+      },
+      q_chip2: {
+        id: "q_chip2",
+        answerKey: "secondIssueDetail",
+        message: { text: "그것도 조금 더 알려주시겠어요?" },
+        control: { kind: "chips", next: afterIssueDetail },
+      },
+      q_free: {
+        id: "q_free",
+        answerKey: "freeText",
+        message: {
+          text: "마지막으로, 더 하고 싶은 말씀 있으면 편하게 적어주세요.\n안 적으셔도 괜찮아요.",
+        },
+        control: {
+          kind: "text",
+          maxLength: 500,
+          placeholder: "담당 매니저가 참고하면 좋을 내용을 적어주세요.",
+          skipLabel: "건너뛰기",
+          submitLabel: "보내기",
+          next: { type: "complete", outcome: "reported" },
+        },
+      },
+    },
+    completionMessages: {
+      ok: { text: okayCompletionText },
+      reported: {
+        text: "말씀 주셔서 감사해요.\n빠르게 확인하고 연락드릴게요 🙂",
+      },
+      urgent: {
+        text: "알려주셔서 정말 감사해요.\n바로 확인해서 담당 매니저가 연락드릴게요.",
+      },
+      renewal: {
+        text: "답변 감사해요 😊\n도와드릴 게 있으면 매니저가 안내드릴게요.",
+      },
+    },
+  };
+}

@@ -1,5 +1,11 @@
 export { chatPreviewScenario } from "./model/scenarios/chat-preview";
+export { facilityEventScenario } from "./model/scenarios/event-facility";
+export { ruleEventScenario } from "./model/scenarios/event-rule";
+export { monthlyFirstScenario } from "./model/scenarios/monthly-first";
 export { monthlyGuestScenario } from "./model/scenarios/monthly-guest";
+export { onboardingD7Scenario } from "./model/scenarios/onboarding-d7";
+export { renewalGuestScenario } from "./model/scenarios/renewal-guest";
+export { selectGuestScenario } from "./model/scenarios/select-guest-scenario";
 export { getIssueTriageLevel, getOverallTriageLevel } from "./model/triage";
 export type {
   AnswerControl,

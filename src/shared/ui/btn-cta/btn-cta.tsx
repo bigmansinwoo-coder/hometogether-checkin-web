@@ -55,7 +55,7 @@ const iconSize: Record<BtnCtaSize, string> = {
 
 const variantClasses: Record<BtnCtaVariant, string> = {
   default:
-    "bg-primary-500 text-white hover:opacity-80 disabled:bg-grayscale-200 disabled:text-grayscale-400 disabled:hover:opacity-100",
+    "bg-primary-600 text-white hover:opacity-80 disabled:bg-grayscale-200 disabled:text-grayscale-400 disabled:hover:opacity-100",
   emphasize:
     "bg-grayscale-800 text-white hover:opacity-80 disabled:bg-grayscale-200 disabled:text-grayscale-400 disabled:hover:opacity-100",
   sub: "bg-primary-100 text-primary-500 hover:opacity-80 disabled:bg-grayscale-200 disabled:text-grayscale-400 disabled:hover:opacity-100",
