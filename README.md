@@ -47,9 +47,17 @@ pnpm dev
 
 ## 검증
 
+Playwright E2E를 처음 실행하는 환경에서는 Chromium을 한 번 설치합니다.
+
+```bash
+pnpm exec playwright install chromium
+```
+
 ```bash
 pnpm typecheck
 pnpm lint
+pnpm test
+pnpm test:e2e
 pnpm build
 ```
 

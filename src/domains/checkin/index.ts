@@ -6,6 +6,8 @@ export {
   CHECKIN_DETAIL_OPTIONS,
   CHECKIN_TAG_OPTIONS,
   getCheckinDetailOptions,
+  assertCheckinSubmission,
+  isCheckinSubmission,
 } from "./model";
 export type {
   CheckinAnswers,
