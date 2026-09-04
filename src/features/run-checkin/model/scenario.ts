@@ -26,6 +26,7 @@ export interface OptionAnswer {
   value: string;
   label: string;
   next: ScenarioNext;
+  presetIssueTag?: CheckinIssueTag;
 }
 
 export interface OptionControl {
@@ -72,6 +73,7 @@ export interface Scenario {
 
 export interface ScenarioContext {
   name: string;
+  eventItemName: string;
 }
 
 export interface TranscriptMessage {

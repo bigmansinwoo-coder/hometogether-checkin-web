@@ -36,7 +36,9 @@ type MachineAction =
   | { type: "retry-submit" };
 
 function interpolate(text: string, context: ScenarioContext) {
-  return text.replaceAll("{name}", context.name);
+  return text
+    .replaceAll("{name}", context.name)
+    .replaceAll("{eventItemName}", context.eventItemName);
 }
 
 function createInitialAnswers(): CheckinAnswers {
@@ -174,10 +176,24 @@ function createMachineReducer(scenario: Scenario, context: ScenarioContext) {
       );
       if (!option) return state;
 
+      const answers = updateResponses(state.answers, currentStep.answerKey, option.value);
+      const issues = option.presetIssueTag
+        ? [
+            ...answers.issues,
+            {
+              tag: option.presetIssueTag,
+              triageLevel: getIssueTriageLevel(option.presetIssueTag),
+            } satisfies CheckinIssue,
+          ]
+        : answers.issues;
       const answeredState = appendUserMessage(
         {
           ...state,
-          answers: updateResponses(state.answers, currentStep.answerKey, option.value),
+          answers: {
+            ...answers,
+            issues,
+            overallTriage: getOverallTriageLevel(issues),
+          },
         },
         option.label,
       );
@@ -276,7 +292,13 @@ function createMachineReducer(scenario: Scenario, context: ScenarioContext) {
 }
 
 export function useCheckinMachine({ scenario, session }: UseCheckinMachineOptions) {
-  const context: ScenarioContext = { name: session.displayName ?? "입주자" };
+  const context: ScenarioContext = {
+    name: session.displayName ?? "입주자",
+    eventItemName:
+      session.eventContext?.type === "facility"
+        ? session.eventContext.itemName
+        : "안내드린 내용",
+  };
   const [state, dispatch] = useReducer(
     createMachineReducer(scenario, context),
     undefined,

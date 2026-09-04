@@ -1,5 +1,5 @@
 import { resolveCheckinSession } from "@/domains/checkin";
-import { chatPreviewScenario, monthlyGuestScenario } from "@/features/run-checkin";
+import { selectGuestScenario } from "@/features/run-checkin";
 import { CheckinChat } from "@/widgets/checkin-chat";
 
 import { CheckinStateScreen } from "./ui/checkin-state-screen";
@@ -14,12 +14,10 @@ export async function CheckinPage({ token }: CheckinPageProps) {
 
   switch (result.status) {
     case "active": {
-      const isGuestMonthly =
-        result.session.personaType === "guest" && result.session.roundType === "monthly";
       return (
         <CheckinChat
           session={result.session}
-          scenario={isGuestMonthly ? monthlyGuestScenario : chatPreviewScenario}
+          scenario={selectGuestScenario(result.session)}
         />
       );
     }
